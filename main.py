@@ -8,9 +8,8 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from dotenv import load_dotenv
 from aiohttp import web
 
-# ==========================================
 # 1. CONFIGURAZIONE DATABASE E AMBIENTE
-# ==========================================
+
 load_dotenv()
 mio_id_telegram = int(os.getenv("MIO_ID"))
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -19,6 +18,17 @@ STAZIONE_1 = os.getenv("STAZIONE_1", "STAZIONE1")
 STAZIONE_2 = os.getenv("STAZIONE_2", "STAZIONE2")
 TRENO_1 = os.getenv("TRENO_1", "00000")
 TRENO_2 = os.getenv("TRENO_2", "00001")
+
+ORARIO_DB_1 = os.getenv("ORARIO_DB_1", "06:00")
+ORARIO_DB_2 = os.getenv("ORARIO_DB_2", "08:00")
+SVEGLIA_ORA_1 = int(os.getenv("SVEGLIA_ORA_1", 6))
+SVEGLIA_MIN_1 = int(os.getenv("SVEGLIA_MIN_1", 0))
+SVEGLIA_ORA_2 = int(os.getenv("SVEGLIA_ORA_2", 8))
+SVEGLIA_MIN_2 = int(os.getenv("SVEGLIA_MIN_2", 0))
+
+GIORNI_1 = os.getenv("GIORNI_1", "mon")
+GIORNI_2 = os.getenv("GIORNI_2", "tue")
+
 conn = sqlite3.connect('treni.db')
 cursor = conn.cursor()
 
@@ -35,16 +45,15 @@ cursor.execute("DELETE FROM preferenze_treni WHERE telegram_id = ?", (mio_id_tel
 
 # Inserisci i tuoi orari
 cursor.execute("INSERT INTO preferenze_treni (telegram_id, orario, numero_treno) VALUES (?, ?, ?)", 
-               (mio_id_telegram, "06:56", TRENO_1))
+               (mio_id_telegram, ORARIO_DB_1, TRENO_1))
 cursor.execute("INSERT INTO preferenze_treni (telegram_id, orario, numero_treno) VALUES (?, ?, ?)", 
-               (mio_id_telegram, "08:56", TRENO_2))
+               (mio_id_telegram, ORARIO_DB_2, TRENO_2))
 
 conn.commit()
 conn.close()
 
-# ==========================================
 # 2. MOTORE DI RICERCA TRENI (API)
-# ==========================================
+
 async def ottieni_stato_treno(numero_treno):
     url_ricerca = f"http://www.viaggiatreno.it/infomobilita/resteasy/viaggiatreno/cercaNumeroTrenoTrenoAutocomplete/{numero_treno}"
     headers_browser = {
@@ -98,9 +107,8 @@ async def ottieni_stato_treno(numero_treno):
         )
         return messaggio
 
-# ==========================================
 # 3. INTERFACCIA BOT TELEGRAM
-# ==========================================
+
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
@@ -131,9 +139,8 @@ async def rispondi_con_stato_treno(message: types.Message):
     else:
         await message.answer(f"Nessun treno salvato per le ore '{orario_richiesto}'.")
 
-# ==========================================
-# 4. LOGICA NOTIFICHE MATTUTINE (AIRUNO/OLGIATE)
-# ==========================================
+# 4. LOGICA NOTIFICHE MATTUTINE 
+
 async def controllo_automatico_mattina(numero_treno):
     await bot.send_message(chat_id=mio_id_telegram, text=f"Buongiorno! Inizio il monitoraggio del treno {numero_treno}. ")
     stato_finale = await ottieni_stato_treno(numero_treno)
@@ -160,13 +167,12 @@ async def controllo_automatico_mattina(numero_treno):
             text=f"Il treno ha superato Airuno ed è in arrivo!\n\n{stato_finale}"
         )
 
-# ==========================================
-# 5. FINTO SERVER WEB PER RENDER.COM
-# ==========================================
+# 5. SERVER WEB PER RENDER.COM
+
 async def web_server_handler(request):
     return web.Response(text="Il bot di monitoraggio treni è attivo e funzionante!")
 
-async def avvia_server_fittizio():
+async def avvia_server():
     app = web.Application()
     app.router.add_get('/', web_server_handler)
     runner = web.AppRunner(app)
@@ -175,36 +181,34 @@ async def avvia_server_fittizio():
     site = web.TCPSite(runner, '0.0.0.0', port)
     await site.start()
 
-# ==========================================
 # 6. SCHEDULER E AVVIO BOT
-# ==========================================
+
 async def avvia_bot():
     scheduler = AsyncIOScheduler()
     
     scheduler.add_job(
-        controllo_automatico_mattina, 
-        'cron', 
-        day_of_week='mon', 
-        hour=6, 
-        minute=38, 
-        args=["TRENO_1"]
-    )
-    
-    scheduler.add_job(
-        controllo_automatico_mattina, 
-        'cron', 
-        day_of_week='tue-fri', 
-        hour=8, 
-        minute=38, 
-        args=["TRENO_2"]
-    )
+    controllo_automatico_mattina, 
+    'cron', 
+    day_of_week=GIORNI_1, 
+    hour=SVEGLIA_ORA_1, 
+    minute=SVEGLIA_MIN_1, 
+    args=[TRENO_1]
+)
+
+scheduler.add_job(
+    controllo_automatico_mattina, 
+    'cron', 
+    day_of_week=GIORNI_2, 
+    hour=SVEGLIA_ORA_2, 
+    minute=SVEGLIA_MIN_2, 
+    args=[TRENO_2]
+)
     
     scheduler.start()
     
-    # Avviamo il finto sito web in background
-    await avvia_server_fittizio()
+    await avvia_server()
     
-    print("Bot avviato! Scheduler e finto web server attivi. In attesa di messaggi...")
+    print("Bot avviato! In attesa di messaggi...")
     await dp.start_polling(bot)
 
 if __name__ == '__main__':
