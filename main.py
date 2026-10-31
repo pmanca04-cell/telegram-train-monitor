@@ -1,4 +1,3 @@
-#%%
 import sqlite3
 import asyncio
 import aiohttp
@@ -8,10 +7,14 @@ from aiogram.filters import Command
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from dotenv import load_dotenv
 from aiohttp import web
-#%%
+
 # ==========================================
-# 1. CONFIGURAZIONE DATABASE
+# 1. CONFIGURAZIONE DATABASE E AMBIENTE
 # ==========================================
+load_dotenv()
+mio_id_telegram = int(os.getenv("MIO_ID"))
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+
 conn = sqlite3.connect('treni.db')
 cursor = conn.cursor()
 
@@ -22,10 +25,11 @@ CREATE TABLE IF NOT EXISTS preferenze_treni (
     numero_treno TEXT
 )
 ''')
-load_dotenv()
-mio_id_telegram = int(os.getenv("MIO_ID"))
+
+# Resetta i vecchi dati per evitare duplicati
 cursor.execute("DELETE FROM preferenze_treni WHERE telegram_id = ?", (mio_id_telegram,))
 
+# Inserisci i tuoi orari
 cursor.execute("INSERT INTO preferenze_treni (telegram_id, orario, numero_treno) VALUES (?, ?, ?)", 
                (mio_id_telegram, "06:56", "24823"))
 cursor.execute("INSERT INTO preferenze_treni (telegram_id, orario, numero_treno) VALUES (?, ?, ?)", 
@@ -34,7 +38,6 @@ cursor.execute("INSERT INTO preferenze_treni (telegram_id, orario, numero_treno)
 conn.commit()
 conn.close()
 
-#%%
 # ==========================================
 # 2. MOTORE DI RICERCA TRENI (API)
 # ==========================================
@@ -91,12 +94,9 @@ async def ottieni_stato_treno(numero_treno):
         )
         return messaggio
 
-#%%
 # ==========================================
 # 3. INTERFACCIA BOT TELEGRAM
 # ==========================================
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
@@ -127,9 +127,37 @@ async def rispondi_con_stato_treno(message: types.Message):
     else:
         await message.answer(f"Nessun treno salvato per le ore '{orario_richiesto}'.")
 
-#%%
 # ==========================================
-# 4. FINTO SERVER WEB PER RENDER.COM
+# 4. LOGICA NOTIFICHE MATTUTINE (AIRUNO/OLGIATE)
+# ==========================================
+async def controllo_automatico_mattina(numero_treno):
+    await bot.send_message(chat_id=mio_id_telegram, text=f"Buongiorno! Inizio il monitoraggio del treno {numero_treno}. ")
+    stato_finale = await ottieni_stato_treno(numero_treno)
+    
+    tentativi = 0
+    while "AIRUNO" not in stato_finale.upper() and "OLGIATE" not in stato_finale.upper() and tentativi < 30:
+        await asyncio.sleep(120) 
+        stato_finale = await ottieni_stato_treno(numero_treno)
+        
+        # 1° Check: Controllo soppressione o limitazione
+        if "SOPPRESSO" in stato_finale:
+            await bot.send_message(chat_id=mio_id_telegram, text=f"ATTENZIONE: Il treno è stato soppresso\n\n{stato_finale}")
+            return 
+
+        if "LIMITATO" in stato_finale:
+            await bot.send_message(chat_id=mio_id_telegram, text=f"ATTENZIONE: Il treno è stato limitato\n\n{stato_finale}")
+            return
+            
+        tentativi += 1
+
+    if "AIRUNO" in stato_finale.upper() or "OLGIATE" in stato_finale.upper():
+        await bot.send_message(
+            chat_id=mio_id_telegram, 
+            text=f"Il treno ha superato Airuno ed è in arrivo!\n\n{stato_finale}"
+        )
+
+# ==========================================
+# 5. FINTO SERVER WEB PER RENDER.COM
 # ==========================================
 async def web_server_handler(request):
     return web.Response(text="Il bot di monitoraggio treni è attivo e funzionante!")
@@ -144,7 +172,7 @@ async def avvia_server_fittizio():
     await site.start()
 
 # ==========================================
-# 5. SCHEDULER E AVVIO BOT
+# 6. SCHEDULER E AVVIO BOT
 # ==========================================
 async def avvia_bot():
     scheduler = AsyncIOScheduler()
@@ -154,7 +182,7 @@ async def avvia_bot():
         'cron', 
         day_of_week='mon', 
         hour=6, 
-        minute=45, 
+        minute=38, 
         args=["24823"]
     )
     
@@ -163,7 +191,7 @@ async def avvia_bot():
         'cron', 
         day_of_week='tue-fri', 
         hour=8, 
-        minute=45, 
+        minute=38, 
         args=["24831"]
     )
     
@@ -177,5 +205,3 @@ async def avvia_bot():
 
 if __name__ == '__main__':
     asyncio.run(avvia_bot())
-
-await avvia_bot()
