@@ -129,36 +129,23 @@ async def rispondi_con_stato_treno(message: types.Message):
 
 #%%
 # ==========================================
-# 4. SCHEDULER E AVVIO
+# 4. FINTO SERVER WEB PER RENDER.COM
 # ==========================================
-async def controllo_automatico_mattina(numero_treno):
-    await bot.send_message(chat_id=mio_id_telegram, text=f"Buongiorno! Inizio il monitoraggio del treno {numero_treno}. Ti avviserò appena passa da Airuno...")
-    stato_finale = await ottieni_stato_treno(numero_treno)
-    
-    tentativi = 0
-    # Aumentiamo i tentativi a 30 (1 ora massime) per dare tempo al treno di fare il tragitto
-    # Il loop continua finché non legge AIRUNO o OLGIATE
-    while "AIRUNO" not in stato_finale.upper() and "OLGIATE" not in stato_finale.upper() and tentativi < 30:
-        await asyncio.sleep(120) 
-        stato_finale = await ottieni_stato_treno(numero_treno)
-        
-        # 1° Check: Controllo soppressione improvvisa o limitazione del treno
-        if "SOPPRESSO" in stato_finale:
-            await bot.send_message(chat_id=mio_id_telegram, text=f"ATTENZIONE: Il treno è stato soppresso\n\n{stato_finale}")
-            return # Ferma completamente la funzione
+async def web_server_handler(request):
+    return web.Response(text="Il bot di monitoraggio treni è attivo e funzionante!")
 
-        if "LIMITATO" in stato_finale:
-            await bot.send_message(chat_id=mio_id_telegram, text=f"ATTENZIONE: Il treno è limitato\n\n{stato_finale}")
-            return
-        tentativi += 1
+async def avvia_server_fittizio():
+    app = web.Application()
+    app.router.add_get('/', web_server_handler)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    port = int(os.environ.get("PORT", 10000))
+    site = web.TCPSite(runner, '0.0.0.0', port)
+    await site.start()
 
-    # Se usciamo dal loop e non è stato soppresso o limitato, significa che ha raggiunto Airuno (o Olgiate)
-    if "AIRUNO" in stato_finale.upper() or "OLGIATE" in stato_finale.upper():
-        await bot.send_message(
-            chat_id=mio_id_telegram, 
-            text=f"Il treno ha superato Airuno\n\n{stato_finale}"
-        )
-
+# ==========================================
+# 5. SCHEDULER E AVVIO BOT
+# ==========================================
 async def avvia_bot():
     scheduler = AsyncIOScheduler()
     
@@ -167,7 +154,7 @@ async def avvia_bot():
         'cron', 
         day_of_week='mon', 
         hour=6, 
-        minute=38, 
+        minute=45, 
         args=["24823"]
     )
     
@@ -176,13 +163,19 @@ async def avvia_bot():
         'cron', 
         day_of_week='tue-fri', 
         hour=8, 
-        minute=38, 
+        minute=45, 
         args=["24831"]
     )
     
     scheduler.start()
-    print("Bot avviato! Scheduler programmato (Lunedì 6:38, Mar-Ven 8:38). In attesa di messaggi...")
+    
+    # Avviamo il finto sito web in background
+    await avvia_server_fittizio()
+    
+    print("Bot avviato! Scheduler e finto web server attivi. In attesa di messaggi...")
     await dp.start_polling(bot)
 
+if __name__ == '__main__':
+    asyncio.run(avvia_bot())
 
 await avvia_bot()
