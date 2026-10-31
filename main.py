@@ -15,6 +15,10 @@ load_dotenv()
 mio_id_telegram = int(os.getenv("MIO_ID"))
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 
+STAZIONE_1 = os.getenv("STAZIONE_1", "STAZIONE1")
+STAZIONE_2 = os.getenv("STAZIONE_2", "STAZIONE2")
+TRENO_1 = os.getenv("TRENO_1", "00000")
+TRENO_2 = os.getenv("TRENO_2", "00001")
 conn = sqlite3.connect('treni.db')
 cursor = conn.cursor()
 
@@ -31,9 +35,9 @@ cursor.execute("DELETE FROM preferenze_treni WHERE telegram_id = ?", (mio_id_tel
 
 # Inserisci i tuoi orari
 cursor.execute("INSERT INTO preferenze_treni (telegram_id, orario, numero_treno) VALUES (?, ?, ?)", 
-               (mio_id_telegram, "06:56", "24823"))
+               (mio_id_telegram, "06:56", TRENO_1))
 cursor.execute("INSERT INTO preferenze_treni (telegram_id, orario, numero_treno) VALUES (?, ?, ?)", 
-               (mio_id_telegram, "08:56", "24831"))
+               (mio_id_telegram, "08:56", TRENO_2))
 
 conn.commit()
 conn.close()
@@ -135,7 +139,7 @@ async def controllo_automatico_mattina(numero_treno):
     stato_finale = await ottieni_stato_treno(numero_treno)
     
     tentativi = 0
-    while "AIRUNO" not in stato_finale.upper() and "OLGIATE" not in stato_finale.upper() and tentativi < 30:
+    while "STAZIONE_1" not in stato_finale.upper() and "STAZIONE_2" not in stato_finale.upper() and tentativi < 30:
         await asyncio.sleep(120) 
         stato_finale = await ottieni_stato_treno(numero_treno)
         
@@ -150,7 +154,7 @@ async def controllo_automatico_mattina(numero_treno):
             
         tentativi += 1
 
-    if "AIRUNO" in stato_finale.upper() or "OLGIATE" in stato_finale.upper():
+    if "STAZIONE_1" in stato_finale.upper() or "STAZIONE_2" in stato_finale.upper():
         await bot.send_message(
             chat_id=mio_id_telegram, 
             text=f"Il treno ha superato Airuno ed è in arrivo!\n\n{stato_finale}"
@@ -183,7 +187,7 @@ async def avvia_bot():
         day_of_week='mon', 
         hour=6, 
         minute=38, 
-        args=["24823"]
+        args=["TRENO_1"]
     )
     
     scheduler.add_job(
@@ -192,7 +196,7 @@ async def avvia_bot():
         day_of_week='tue-fri', 
         hour=8, 
         minute=38, 
-        args=["24831"]
+        args=["TRENO_2"]
     )
     
     scheduler.start()
