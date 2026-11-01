@@ -187,28 +187,28 @@ async def avvia_bot():
     scheduler = AsyncIOScheduler()
     
     scheduler.add_job(
-    controllo_automatico_mattina, 
-    'cron', 
-    day_of_week=GIORNI_1, 
-    hour=SVEGLIA_ORA_1, 
-    minute=SVEGLIA_MIN_1, 
-    args=[TRENO_1]
-)
-
-scheduler.add_job(
-    controllo_automatico_mattina, 
-    'cron', 
-    day_of_week=GIORNI_2, 
-    hour=SVEGLIA_ORA_2, 
-    minute=SVEGLIA_MIN_2, 
-    args=[TRENO_2]
-)
+        controllo_automatico_mattina, 
+        'cron', 
+        day_of_week=GIORNI_1, 
+        hour=SVEGLIA_ORA_1, 
+        minute=SVEGLIA_MIN_1, 
+        args=[TRENO_1]
+    )
+    
+    scheduler.add_job(
+        controllo_automatico_mattina, 
+        'cron', 
+        day_of_week=GIORNI_2, 
+        hour=SVEGLIA_ORA_2, 
+        minute=SVEGLIA_MIN_2, 
+        args=[TRENO_2]
+    )
     
     scheduler.start()
     
-    await avvia_server()
+    await avvia_server_fittizio()
     
-    print("Bot avviato! In attesa di messaggi...")
+    print("Bot avviato! Scheduler e finto web server attivi. In attesa di messaggi...")
     await dp.start_polling(bot)
 
 if __name__ == '__main__':
