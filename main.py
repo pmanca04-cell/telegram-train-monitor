@@ -206,7 +206,7 @@ async def avvia_bot():
     
     scheduler.start()
     
-    await avvia_server_fittizio()
+    await avvia_server()
     
     print("Bot avviato! Scheduler e finto web server attivi. In attesa di messaggi...")
     await dp.start_polling(bot)
