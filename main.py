@@ -55,7 +55,12 @@ conn.close()
 # 2. MOTORE DI RICERCA TRENI (API)
 
 async def ottieni_stato_treno(numero_treno):
-    url_ricerca = f"http://www.viaggiatreno.it/infomobilita/resteasy/viaggiatreno/cercaNumeroTrenoTrenoAutocomplete/{numero_treno}"
+    API_KEY = os.environ.get("SCRAPER_API_KEY")
+    
+    # 1. Maschera l'URL di ricerca treno
+    url_ricerca_base = f"http://www.viaggiatreno.it/infomobilita/resteasy/viaggiatreno/cercaNumeroTrenoTrenoAutocomplete/{numero_treno}"
+    url_ricerca = f"http://api.scraperapi.com?api_key={API_KEY}&url={url_ricerca_base}"
+    
     headers_browser = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     }
@@ -78,7 +83,9 @@ async def ottieni_stato_treno(numero_treno):
         except IndexError:
             return f"Errore nel parsing dei dati stazione per il treno {numero_treno}."
         
-        url_stato = f"http://www.viaggiatreno.it/infomobilita/resteasy/viaggiatreno/andamentoTreno/{codice_stazione}/{numero_treno}/{timestamp}"
+        # 2. Maschera l'URL dello stato del treno
+        url_stato_base = f"http://www.viaggiatreno.it/infomobilita/resteasy/viaggiatreno/andamentoTreno/{codice_stazione}/{numero_treno}/{timestamp}"
+        url_stato = f"http://api.scraperapi.com?api_key={API_KEY}&url={url_stato_base}"
         
         async with session.get(url_stato) as response:
             if response.status != 200:
@@ -106,7 +113,6 @@ async def ottieni_stato_treno(numero_treno):
             f"Ritardo attuale: {ritardo} minuti"
         )
         return messaggio
-
 # 3. INTERFACCIA BOT TELEGRAM
 
 bot = Bot(token=BOT_TOKEN)
