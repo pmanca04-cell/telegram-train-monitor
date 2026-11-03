@@ -148,30 +148,48 @@ async def rispondi_con_stato_treno(message: types.Message):
 # 4. LOGICA NOTIFICHE MATTUTINE 
 
 async def controllo_automatico_mattina(numero_treno):
-    await bot.send_message(chat_id=mio_id_telegram, text=f"Buongiorno! Inizio il monitoraggio del treno {numero_treno}. ")
-    stato_finale = await ottieni_stato_treno(numero_treno)
+    await bot.send_message(chat_id=mio_id_telegram, text=f"Buongiorno! Inizio il monitoraggio del treno {numero_treno}.")
     
     tentativi = 0
-    while "STAZIONE_1" not in stato_finale.upper() and "STAZIONE_2" not in stato_finale.upper() and tentativi < 30:
-        await asyncio.sleep(120) 
-        stato_finale = await ottieni_stato_treno(numero_treno)
-        
-        # 1° Check: Controllo soppressione o limitazione
-        if "SOPPRESSO" in stato_finale:
-            await bot.send_message(chat_id=mio_id_telegram, text=f"ATTENZIONE: Il treno è stato soppresso\n\n{stato_finale}")
-            return 
+    stato_finale = "Stato non disponibile."
+    treno_partito = False  # Variabile per tracciare se abbiamo già inviato l'avviso di partenza
+    
+    # Esegue il controllo ogni 2 minuti, fino a un massimo di 30 volte (1 ora)
+    while tentativi < 30:
+        try:
+            stato_finale = await ottieni_stato_treno(numero_treno)
+            
+            # 1° Check: Controllo soppressione o limitazione
+            if "SOPPRESSO" in stato_finale:
+                await bot.send_message(chat_id=mio_id_telegram, text=f"ATTENZIONE: Il treno è stato soppresso\n\n{stato_finale}")
+                return 
 
-        if "LIMITATO" in stato_finale:
-            await bot.send_message(chat_id=mio_id_telegram, text=f"ATTENZIONE: Il treno è stato limitato\n\n{stato_finale}")
-            return
+            if "LIMITATO" in stato_finale:
+                await bot.send_message(chat_id=mio_id_telegram, text=f"ATTENZIONE: Il treno è stato limitato\n\n{stato_finale}")
+                return
+                
+            # NUOVO CHECK: Avviso di partenza
+            if not treno_partito and "In viaggio" in stato_finale:
+                await bot.send_message(chat_id=mio_id_telegram, text=f"Il treno è partito!\n\n{stato_finale}")
+                treno_partito = True  # Segna che l'avviso è stato mandato per non ripeterlo
+                
+            # 2° Check: Superamento della stazione desiderata
+            if STAZIONE_1.upper() in stato_finale.upper() or STAZIONE_2.upper() in stato_finale.upper():
+                await bot.send_message(
+                    chat_id=mio_id_telegram, 
+                    text=f"Il treno ha superato la stazione impostata ed è in arrivo!\n\n{stato_finale}"
+                )
+                return # Spegne il monitoraggio per oggi
+            
+        except Exception as e:
+            # Se la rete salta per un attimo, ignora l'errore e riprova dopo
+            print(f"Errore di rete temporaneo: {e}")
             
         tentativi += 1
-
-    if "STAZIONE_1" in stato_finale.upper() or "STAZIONE_2" in stato_finale.upper():
-        await bot.send_message(
-            chat_id=mio_id_telegram, 
-            text=f"Il treno ha superato Airuno ed è in arrivo!\n\n{stato_finale}"
-        )
+        await asyncio.sleep(120)
+        
+    # 3° Check: Se è passata un'ora e non è arrivato
+    await bot.send_message(chat_id=mio_id_telegram, text=f"Monitoraggio terminato (tempo scaduto). Ultimo stato noto:\n{stato_finale}")
 
 # 5. SERVER WEB PER RENDER.COM
 
