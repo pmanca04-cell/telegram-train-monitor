@@ -1,3 +1,15 @@
+"""
+======================================================================================
+Project: Telegram Train Monitor Bot
+Description: A Telegram bot for commuters that monitors trains in the background
+             (Trenitalia/Trenord). It provides real-time updates on delays,
+             bypasses anti-bot blocks using a proxy (ScraperAPI), and sends
+             customizable automated notifications (departure, station transit, cancellations).
+Author: Pierluigi Manca
+Date: November 2026
+======================================================================================
+"""
+
 import sqlite3
 import asyncio
 import aiohttp
